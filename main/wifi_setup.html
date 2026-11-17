@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>ตั้งค่า Smart Meter</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #101827;
+      color: #e5edf7;
+      font: 16px system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    input, select, button {
+      box-sizing: border-box;
+      width: 100%;
+      margin: 8px 0;
+      padding: 12px;
+      border: 1px solid #456;
+      border-radius: 8px;
+      background: #172438;
+      color: #fff;
+      font: inherit;
+    }
+    button { background: #087e70; cursor: pointer; }
+    button:disabled { cursor: wait; opacity: .6; }
+    button.danger { border-color: #9e444d; background: #572a37; color: #ffd5d8; }
+    .card {
+      margin: 16px 0;
+      padding: 18px;
+      border: 1px solid #263449;
+      border-radius: 14px;
+      background: #172438;
+    }
+    .muted, .device-meta { color: #95a6bd; }
+    .muted { font-size: .9rem; }
+    .device-list { display: grid; gap: 8px; }
+    .device {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      text-align: left;
+    }
+    .device-meta { display: block; margin-top: 4px; font-size: .85rem; }
+    .meter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .meter { padding: 12px; border: 1px solid #34465f; border-radius: 10px; }
+    .meter-value { margin-top: 6px; font-size: 1.3rem; font-weight: 650; }
+    .state {
+      display: inline-block;
+      padding: 8px 11px;
+      border-radius: 999px;
+      background: #28364b;
+      font-size: .85rem;
+    }
+    .online { background: #123d35; color: #70e0b7; }
+    #status, #ble-status { min-height: 1.5em; }
+    #status a {
+      display: block;
+      margin-top: 12px;
+      color: #70e0b7;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    @media (max-width: 480px) {
+      body { margin: 12px auto; padding: 14px; }
+      .card { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Smart Meter</h1>
+  <h2>ตั้งค่า Wi-Fi และทดสอบมิเตอร์</h2>
+  <p class="muted">
+    เลือกมิเตอร์ Bluetooth เพื่อตรวจสอบข้อมูล DLMS
+    หรือกำหนดค่า Wi-Fi เพื่อใช้งานต่อ
+  </p>
+
+  <section class="card">
+    <h3>ทดสอบมิเตอร์ผ่าน Bluetooth</h3>
+    <p id="ble-state" class="state" aria-live="polite">กำลังตรวจสอบการเชื่อมต่อ…</p>
+    <button type="button" id="scan-ble">สแกน Bluetooth</button>
+    <button type="button" id="clear-ble" class="danger">ล้างค่ามิเตอร์ Bluetooth ที่เลือก</button>
+    <div id="ble-devices" class="device-list" aria-live="polite"></div>
+    <p id="ble-status" class="muted" aria-live="polite">พร้อมสแกนมิเตอร์</p>
+
+    <h4>ค่าที่อ่านได้จากมิเตอร์</h4>
+    <div class="meter-grid" aria-live="polite">
+      <div class="meter">
+        <span class="muted">แรงดัน (Voltage)</span>
+        <div id="voltage" class="meter-value">—</div>
+      </div>
+      <div class="meter">
+        <span class="muted">กระแส (Current)</span>
+        <div id="current" class="meter-value">—</div>
+      </div>
+      <div class="meter">
+        <span class="muted">กำลังไฟ (Active power)</span>
+        <div id="power" class="meter-value">—</div>
+      </div>
+    </div>
+    <p id="dlms-result" class="muted" aria-live="polite">รอข้อมูลจากมิเตอร์</p>
+  </section>
+
+  <section class="card">
+    <h3>ตั้งค่า Wi-Fi</h3>
+    <p class="muted">
+      เครือข่ายตั้งค่านี้เป็นเครือข่ายเปิด
+      กรุณากรอกรหัสผ่านบนอุปกรณ์ของคุณเอง
+    </p>
+    <form id="setup">
+      <label for="ssid">เครือข่าย (SSID)</label>
+      <select id="ssid" name="ssid" required></select>
+      <button type="button" id="scan">สแกน Wi-Fi อีกครั้ง</button>
+      <label for="password">รหัสผ่าน</label>
+      <input id="password" name="password" type="password"
+             autocomplete="current-password" maxlength="63">
+      <button type="submit">เชื่อมต่อ Wi-Fi</button>
+    </form>
+    <p id="status" class="muted" aria-live="polite">กำลังสแกนเครือข่าย Wi-Fi…</p>
+    <button type="button" id="reset-wifi" class="danger">
+      ล้างการตั้งค่า Wi-Fi ที่บันทึกไว้
+    </button>
+  </section>
+
+  <script>
+    const wifiStatus = document.querySelector('#status');
+    const ssidSelect = document.querySelector('#ssid');
+    const bleStatus = document.querySelector('#ble-status');
+
+    async function api(url, options) {
+      const response = await fetch(url, { cache: 'no-store', ...options });
+      if (!response.ok) {
+        throw new Error((await response.text()) || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    async function scanWifi() {
+      wifiStatus.textContent = 'กำลังสแกน Wi-Fi…';
+      ssidSelect.replaceChildren();
+      try {
+        let data;
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          data = await api(`/api/wifi/scan${attempt === 0 ? '?refresh=1' : ''}`);
+          if (!data.scanning) break;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+        if (!data || data.scanning) {
+          throw new Error('หมดเวลาสแกน กรุณาลองอีกครั้ง');
+        }
+        for (const network of data.networks) {
+          const option = document.createElement('option');
+          option.value = network.ssid;
+          option.textContent = `${network.ssid} (${network.rssi} dBm)`;
+          ssidSelect.append(option);
+        }
+        wifiStatus.textContent = data.networks.length
+          ? 'เลือกเครือข่ายและกรอกรหัสผ่าน'
+          : 'ไม่พบเครือข่าย Wi-Fi';
+      } catch (error) {
+        wifiStatus.textContent = `สแกน Wi-Fi ไม่สำเร็จ: ${error.message}`;
+      }
+    }
+
+    document.querySelector('#scan').addEventListener('click', scanWifi);
+
+    document.querySelector('#setup').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      wifiStatus.textContent = 'กำลังเชื่อมต่อ…';
+      const body = new URLSearchParams(new FormData(event.currentTarget));
+      try {
+        await api('/api/wifi/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body
+        });
+        wifiStatus.textContent = `กำลังเชื่อมต่อกับ ${ssidSelect.value}…`;
+        const timer = setInterval(async () => {
+          try {
+            const response = await fetch('/api/wifi/status', { cache: 'no-store' });
+            const data = await response.json();
+            if (data.connected) {
+              clearInterval(timer);
+              const link = document.createElement('a');
+              link.href = `http://${data.ip}/dashboard`;
+              link.textContent = `เปิดหน้า Smart Meter ที่ http://${data.ip}/dashboard`;
+              wifiStatus.replaceChildren(
+                document.createTextNode(
+                  'เชื่อมต่อ Wi-Fi แล้ว ให้เปลี่ยนโทรศัพท์ไปใช้ Wi-Fi ที่เลือก แล้วเปิด Dashboard:'
+                ),
+                link
+              );
+            } else if (data.error) {
+              clearInterval(timer);
+              wifiStatus.textContent = data.error;
+            }
+          } catch {
+            // The device may briefly disconnect while switching Wi-Fi mode.
+          }
+        }, 1000);
+        setTimeout(() => {
+          clearInterval(timer);
+          if (wifiStatus.textContent.startsWith('กำลังเชื่อมต่อกับ')) {
+            wifiStatus.textContent = 'หมดเวลาเชื่อมต่อ ตรวจสอบรหัสผ่านแล้วลองอีกครั้ง';
+          }
+        }, 30000);
+      } catch (error) {
+        wifiStatus.textContent = `เชื่อมต่อ Wi-Fi ไม่สำเร็จ: ${error.message}`;
+      }
+    });
+
+    function renderDevices(devices) {
+      const list = document.querySelector('#ble-devices');
+      list.replaceChildren();
+      for (const device of devices) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'device';
+        const identity = document.createElement('span');
+        const name = document.createElement('strong');
+        name.textContent = device.name || 'ไม่ระบุชื่อ';
+        const details = document.createElement('span');
+        details.className = 'device-meta';
+        details.textContent = `${device.address} · ${device.rssi_dbm} dBm`;
+        identity.append(name, details);
+        const action = document.createElement('span');
+        action.textContent = 'เลือก';
+        button.append(identity, action);
+        button.addEventListener('click', () => selectBleDevice(device, button));
+        list.append(button);
+      }
+    }
+
+    async function scanBle() {
+      const button = document.querySelector('#scan-ble');
+      button.disabled = true;
+      bleStatus.textContent = 'กำลังสแกน Bluetooth…';
+      const deadline = Date.now() + 15000;
+      try {
+        let data = await api('/api/settings/ble/scan?refresh=1');
+        renderDevices(data.devices);
+        while (data.scanning && Date.now() < deadline) {
+          bleStatus.textContent = `กำลังสแกน… พบ ${data.devices.length} อุปกรณ์`;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          data = await api('/api/settings/ble/scan');
+          renderDevices(data.devices);
+        }
+        bleStatus.textContent = data.devices.length
+          ? `พบ ${data.devices.length} อุปกรณ์ เลือกมิเตอร์ที่ต้องการ`
+          : 'ไม่พบอุปกรณ์ Bluetooth กรุณาขยับเข้าใกล้แล้วสแกนอีกครั้ง';
+      } catch (error) {
+        bleStatus.textContent = `สแกน Bluetooth ไม่สำเร็จ: ${error.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    async function selectBleDevice(device, button) {
+      button.disabled = true;
+      bleStatus.textContent = `กำลังบันทึกและเชื่อมต่อ ${device.name || device.address}…`;
+      try {
+        const body = new URLSearchParams({
+          address: device.address,
+          address_type: String(device.address_type),
+          name: device.name || device.address
+        });
+        await api('/api/settings/ble/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body
+        });
+        await refreshBle();
+      } catch (error) {
+        bleStatus.textContent = `เลือกมิเตอร์ไม่สำเร็จ: ${error.message}`;
+        button.disabled = false;
+      }
+    }
+
+    function formatReading(meter) {
+      if (!meter || meter.value === null) return 'รอข้อมูล';
+      return `${Number(meter.value).toLocaleString(undefined, {
+        maximumFractionDigits: 3
+      })} ${meter.unit}`;
+    }
+
+    async function refreshBle() {
+      try {
+        const [ble, data] = await Promise.all([
+          api('/api/settings/ble'),
+          api('/api/status')
+        ]);
+        const readings = ['Voltage L1', 'Current L1', 'Active power']
+          .map((name) => data.meter.find((meter) => meter.name === name));
+        const selected = !ble.cleared;
+        document.querySelector('#voltage').textContent =
+          selected ? formatReading(readings[0]) : '—';
+        document.querySelector('#current').textContent =
+          selected ? formatReading(readings[1]) : '—';
+        document.querySelector('#power').textContent =
+          selected ? formatReading(readings[2]) : '—';
+
+        const connectedState = document.querySelector('#ble-state');
+        connectedState.textContent = !selected
+          ? 'ยังไม่ได้เลือกมิเตอร์'
+          : (ble.connected
+            ? `เชื่อมต่อ Bluetooth แล้ว: ${ble.name || 'มิเตอร์'}`
+            : (ble.name && ble.name !== 'Factory default'
+              ? `กำลังเชื่อมต่อ ${ble.name}`
+              : 'ยังไม่ได้เลือกมิเตอร์'));
+        connectedState.classList.toggle('online', selected && ble.connected);
+
+        const verified = selected && ble.connected && readings.every((meter) =>
+          meter && meter.value !== null && Number.isFinite(Number(meter.value))
+        );
+        document.querySelector('#dlms-result').textContent = verified
+          ? 'อ่านค่าแรงดัน กระแส และกำลังไฟได้ — ยืนยันการรับข้อมูล DLMS แล้ว'
+          : (!selected
+            ? 'เลือกมิเตอร์ Bluetooth เพื่อเริ่มทดสอบ DLMS'
+            : (ble.connected
+            ? 'เชื่อมต่อแล้ว กำลังรอค่ามิเตอร์จาก DLMS'
+            : 'เลือกมิเตอร์และเชื่อมต่อเพื่อทดสอบ DLMS'));
+      } catch (error) {
+        bleStatus.textContent = `อ่านสถานะ Bluetooth ไม่สำเร็จ: ${error.message}`;
+      }
+    }
+
+    document.querySelector('#scan-ble').addEventListener('click', scanBle);
+
+    document.querySelector('#clear-ble').addEventListener('click', async (event) => {
+      if (!confirm('ล้างมิเตอร์ Bluetooth ที่เลือกไว้หรือไม่?')) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      document.querySelector('#voltage').textContent = '—';
+      document.querySelector('#current').textContent = '—';
+      document.querySelector('#power').textContent = '—';
+      document.querySelector('#ble-state').textContent = 'กำลังล้างการเลือกมิเตอร์…';
+      document.querySelector('#ble-state').classList.remove('online');
+      document.querySelector('#dlms-result').textContent = 'ยังไม่ได้เลือกมิเตอร์';
+      bleStatus.textContent = 'กำลังล้างค่ามิเตอร์ Bluetooth…';
+      try {
+        await api('/api/settings/ble/delete', { method: 'POST' });
+        document.querySelector('#ble-devices').replaceChildren();
+        bleStatus.textContent = 'ล้างค่ามิเตอร์ Bluetooth ที่บันทึกไว้แล้ว';
+        await refreshBle();
+      } catch (error) {
+        bleStatus.textContent = `ล้างค่ามิเตอร์ Bluetooth ไม่สำเร็จ: ${error.message}`;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.querySelector('#reset-wifi').addEventListener('click', async (event) => {
+      if (!confirm('ล้างชื่อเครือข่ายและรหัสผ่าน Wi-Fi ที่บันทึกไว้? อุปกรณ์จะเริ่มระบบใหม่')) {
+        return;
+      }
+      const button = event.currentTarget;
+      button.disabled = true;
+      wifiStatus.textContent = 'กำลังล้างการตั้งค่าและเริ่มระบบใหม่…';
+      try {
+        await api('/api/settings/wifi/reset', { method: 'POST' });
+        wifiStatus.textContent = 'ล้างการตั้งค่า Wi-Fi แล้ว อุปกรณ์กำลังเริ่มระบบใหม่';
+      } catch (error) {
+        wifiStatus.textContent = `ล้างการตั้งค่าไม่สำเร็จ: ${error.message}`;
+        button.disabled = false;
+      }
+    });
+
+    scanWifi();
+    refreshBle();
+    setInterval(refreshBle, 2000);
+  </script>
+</body>
+</html>

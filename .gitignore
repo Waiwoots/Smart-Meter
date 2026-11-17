@@ -1,0 +1,74 @@
+# Operating system files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.directory
+
+# Temporary files and logs
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+
+# ESP-IDF and CMake build outputs
+build/
+**/build/
+managed_components/
+.espressif/
+components/.idf/
+**/components/.idf/
+*.o
+*.a
+*.out
+*.exe
+*.bin
+*.elf
+*.map
+flasher_args.json
+sdkconfig
+sdkconfig.old
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+compile_commands.json
+
+# Python environments and generated files
+*.py[cod]
+__pycache__/
+*.egg-info/
+dist/
+venv/
+.venv/
+env/
+
+# IDE and user-specific files
+.clangd/
+.ccls-cache/
+.vscode/settings.json
+**/.vscode/settings.json
+*.code-workspace
+*.user
+*.workspace
+*.suo
+*.sln.docstates
+
+# Local credentials and private keys
+.env
+.env.*
+!.env.example
+*.key
+*.p12
+*.pfx
+*_private.pem
+*_key.pem
+
+# Local-only backups and diagnostic output
+components/ble_transport/*Back*.c
+main/Resual.txt

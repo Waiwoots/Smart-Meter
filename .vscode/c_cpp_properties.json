@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "name": "ESP-IDF",
+      "compilerPath": "",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json",
+      "intelliSenseMode": "gcc-x64",
+      "includePath": [
+        "${workspaceFolder}/**",
+        "${env:IDF_PATH}/components/**",
+        "${env:IDF_PATH}/components/freertos/include",
+        "${env:IDF_PATH}/components/esp_system/include",
+        "${env:IDF_PATH}/components/esp_common/include",
+        "${env:IDF_PATH}/components/esp_wifi/include",
+        "${env:IDF_PATH}/components/nvs_flash/include",
+        "${env:IDF_PATH}/components/bt/include",
+        "${workspaceFolder}/build/include"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}",
+          "${env:IDF_PATH}/components"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ],
+  "version": 4
+}

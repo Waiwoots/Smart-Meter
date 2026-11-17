@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>Smart Meter</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: #101827;
+      color: #e5edf7;
+      font-synthesis: none;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; }
+    header {
+      position: sticky; top: 0; z-index: 2;
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 20px; padding: 14px max(20px, calc((100% - 1100px) / 2));
+      border-bottom: 1px solid #263449; background: #141f30;
+    }
+    .brand { display: flex; align-items: center; gap: 18px; }
+    h1 { margin: 0; font-size: 1.25rem; }
+    nav { display: flex; flex-wrap: wrap; gap: 6px; }
+    button {
+      border: 1px solid #34465f; border-radius: 9px; padding: 10px 14px;
+      background: #172438; color: #d6e2f0; font: inherit; cursor: pointer;
+    }
+    button:hover, button.active { border-color: #16a394; color: #70e0b7; }
+    button.primary { border-color: #087e70; background: #087e70; color: #fff; }
+    button.danger { border-color: #9e444d; background: #572a37; color: #ffd5d8; }
+    button:disabled { cursor: wait; opacity: .6; }
+    main { max-width: 1100px; margin: 0 auto; padding: 28px 20px 48px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    .subtitle, .muted, .label { color: #95a6bd; }
+    .subtitle { margin-top: 6px; }
+    h2 { margin: 0 0 16px; font-size: 1.35rem; }
+    h3 { margin: 0 0 14px; font-size: 1.05rem; }
+    p { line-height: 1.6; }
+    .grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px; margin: 18px 0 26px;
+    }
+    .card {
+      border: 1px solid #263449; border-radius: 14px; padding: 18px;
+      background: #172438; box-shadow: 0 8px 24px #070d1680;
+    }
+    .label { font-size: .88rem; }
+    .value {
+      margin-top: 10px; font-size: 1.55rem; font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    .unit { color: #95a6bd; font-size: .9rem; font-weight: 500; }
+    .pill {
+      display: inline-flex; border-radius: 999px; padding: 7px 11px;
+      background: #28364b; color: #b8c8db; font-size: .82rem;
+      white-space: nowrap;
+    }
+    .pill.online { background: #123d35; color: #70e0b7; }
+    .meter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+    .meter-card .value { font-size: 1.35rem; }
+    .settings-tabs { display: flex; gap: 8px; margin: 0 0 16px; }
+    .settings-panel { display: none; }
+    .settings-panel.active { display: block; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    #wifi-message, #ble-message, #refresh { min-height: 1.5em; color: #95a6bd; font-size: .9rem; }
+    .device-list { display: grid; gap: 10px; margin-top: 16px; }
+    .device {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 14px; width: 100%; text-align: left;
+    }
+    .device-name { display: block; font-weight: 650; }
+    .device-meta { display: block; margin-top: 4px; color: #95a6bd; font-size: .85rem; }
+    .home-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .note { color: #95a6bd; font-size: .9rem; }
+    @media (max-width: 700px) {
+      header { align-items: flex-start; flex-direction: column; }
+      .brand { width: 100%; justify-content: space-between; }
+      nav { width: 100%; }
+      nav button { flex: 1; padding-inline: 8px; }
+    }
+    @media (max-width: 520px) {
+      main { padding: 22px 14px 36px; }
+      .grid, .meter-grid { grid-template-columns: 1fr 1fr; }
+      .card { padding: 14px; }
+      .value { font-size: 1.2rem; }
+      .device { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>Smart Meter</h1>
+      <span id="connection" class="pill">Connecting…</span>
+    </div>
+    <nav aria-label="Main menu">
+      <button type="button" class="active" data-view="home">Home</button>
+      <button type="button" data-view="dashboard">Dashboard</button>
+      <button type="button" data-view="settings">Setting</button>
+      <button type="button" data-view="about">About</button>
+    </nav>
+  </header>
+  <main>
+    <section id="home-view" class="view active">
+      <h2>Home</h2>
+      <p class="subtitle">Smart meter connection and energy monitoring.</p>
+      <section class="grid" aria-label="Device overview">
+        <article class="card">
+          <div class="label">Wi-Fi network</div>
+          <div class="value" id="home-wifi">Loading…</div>
+        </article>
+        <article class="card">
+          <div class="label">Bluetooth meter</div>
+          <div class="value" id="home-ble">Loading…</div>
+        </article>
+        <article class="card">
+          <div class="label">Device IP address</div>
+          <div class="value" id="home-ip">—</div>
+        </article>
+      </section>
+      <div class="home-actions">
+        <button type="button" class="primary" data-view="dashboard">Open Dashboard</button>
+        <button type="button" data-view="settings">Connection settings</button>
+      </div>
+    </section>
+
+    <section id="dashboard-view" class="view">
+      <h2>Dashboard</h2>
+      <section class="grid" aria-label="Connection status">
+        <article class="card">
+          <div class="label">Device IP address</div>
+          <div class="value" id="ip">—</div>
+        </article>
+        <article class="card">
+          <div class="label">Wi-Fi signal</div>
+          <div class="value"><span id="wifi">—</span> <span class="unit">dBm</span></div>
+        </article>
+        <article class="card">
+          <div class="label">Bluetooth signal</div>
+          <div class="value"><span id="ble">—</span> <span class="unit">dBm</span></div>
+        </article>
+        <article class="card">
+          <div class="label">Meter data updated</div>
+          <div class="value" id="updated">Waiting</div>
+        </article>
+      </section>
+      <h3>Meter readings</h3>
+      <section id="meters" class="meter-grid" aria-live="polite"></section>
+      <p id="refresh">Refreshing automatically every 2 seconds</p>
+    </section>
+
+    <section id="settings-view" class="view">
+      <h2>Setting</h2>
+      <div class="settings-tabs" role="tablist" aria-label="Connection settings">
+        <button type="button" class="active" data-settings="wifi" role="tab"
+                aria-selected="true">Wi-Fi</button>
+        <button type="button" data-settings="bluetooth" role="tab"
+                aria-selected="false">Bluetooth</button>
+      </div>
+
+      <section id="wifi-settings" class="settings-panel active" role="tabpanel">
+        <article class="card">
+          <h3>Wi-Fi connection</h3>
+          <div class="label">Connected SSID</div>
+          <div id="wifi-ssid" class="value">Loading…</div>
+          <p>Signal strength: <strong id="wifi-settings-rssi">—</strong></p>
+          <span id="wifi-state" class="pill">Checking connection…</span>
+          <div class="actions">
+            <button type="button" id="reset-wifi" class="danger">Reset Wi-Fi credentials</button>
+          </div>
+          <p id="wifi-message" aria-live="polite"></p>
+        </article>
+      </section>
+
+      <section id="bluetooth-settings" class="settings-panel" role="tabpanel">
+        <article class="card">
+          <h3>Selected Bluetooth meter</h3>
+          <div class="label">Device name</div>
+          <div id="ble-name" class="value">Loading…</div>
+          <p>MAC address: <strong id="ble-address">—</strong></p>
+          <p>Signal strength: <strong id="ble-settings-rssi">—</strong></p>
+          <span id="ble-state" class="pill">Checking connection…</span>
+          <div class="actions">
+            <button type="button" id="scan-ble" class="primary">Scan BLE devices</button>
+            <button type="button" id="delete-ble" class="danger">Delete saved BLE device</button>
+          </div>
+          <p class="note">Scanning displays nearby BLE devices. Selecting another meter may temporarily interrupt current meter readings.</p>
+          <p id="ble-message" aria-live="polite"></p>
+          <div id="ble-devices" class="device-list" aria-live="polite"></div>
+        </article>
+      </section>
+    </section>
+
+    <section id="about-view" class="view">
+      <h2>About</h2>
+      <article class="card">
+        <h3>Smart Meter</h3>
+        <p>Monitor meter readings and manage Wi-Fi and Bluetooth connections.</p>
+        <p class="muted">Meter communication uses Bluetooth Low Energy (BLE).</p>
+         <p align="center"  color="gray"  class="muted">Version 1.0.0  Power By A.I.D. Coperation </p>
+      </article>
+    </section>
+  </main>
+  <script>
+    const connection = document.getElementById('connection');
+    const elapsed = (milliseconds) => {
+      if (!milliseconds) return 'Waiting';
+      const seconds = Math.floor(milliseconds / 1000);
+      return seconds < 2 ? 'Just now' : `${seconds}s ago`;
+    };
+
+    async function requestJson(url, options) {
+      const response = await fetch(url, { cache: 'no-store', ...options });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || `HTTP ${response.status}`);
+      }
+      return response.json();
+    }
+
+    function showView(name) {
+      document.querySelectorAll('.view').forEach((view) => {
+        view.classList.toggle('active', view.id === `${name}-view`);
+      });
+      document.querySelectorAll('[data-view]').forEach((button) => {
+        button.classList.toggle('active', button.dataset.view === name);
+      });
+      if (name === 'settings') refreshSettings();
+      if (name === 'dashboard') refreshDashboard();
+    }
+
+    document.querySelectorAll('[data-view]').forEach((button) => {
+      button.addEventListener('click', () => showView(button.dataset.view));
+    });
+
+    document.querySelectorAll('[data-settings]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const selected = button.dataset.settings;
+        document.querySelectorAll('[data-settings]').forEach((tab) => {
+          const active = tab === button;
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-selected', String(active));
+        });
+        document.querySelectorAll('.settings-panel').forEach((panel) => {
+          panel.classList.toggle('active', panel.id === `${selected}-settings`);
+        });
+        if (selected === 'wifi') refreshWifiSettings();
+        else refreshBleSettings();
+      });
+    });
+
+    async function refreshDashboard() {
+      try {
+        const data = await requestJson('/api/status');
+        document.getElementById('ip').textContent = data.ip || 'Not connected';
+        document.getElementById('wifi').textContent =
+          data.wifi_rssi_dbm === null ? '—' : data.wifi_rssi_dbm;
+        document.getElementById('ble').textContent =
+          data.ble_rssi_dbm === null ? '—' : data.ble_rssi_dbm;
+        document.getElementById('updated').textContent = elapsed(data.meter_age_ms);
+        connection.textContent = data.ble_connected ? 'Bluetooth connected' : 'Bluetooth disconnected';
+        connection.classList.toggle('online', data.ble_connected);
+        document.getElementById('meters').replaceChildren(...data.meter.map((meter) => {
+          const card = document.createElement('article');
+          card.className = 'card meter-card';
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = meter.name;
+          const value = document.createElement('div');
+          value.className = 'value';
+          value.textContent = meter.value === null
+            ? 'No data'
+            : `${Number(meter.value).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meter.unit}`;
+          card.append(label, value);
+          return card;
+        }));
+        document.getElementById('home-ip').textContent = data.ip || 'Not connected';
+      } catch (error) {
+        connection.textContent = 'Dashboard unavailable';
+        connection.classList.remove('online');
+        document.getElementById('refresh').textContent = error.message;
+        console.error('Dashboard refresh failed:', error);
+      }
+    }
+
+    async function refreshWifiSettings() {
+      try {
+        const data = await requestJson('/api/settings/wifi');
+        document.getElementById('wifi-ssid').textContent = data.ssid || 'Not configured';
+        document.getElementById('home-wifi').textContent = data.ssid || 'Not connected';
+        document.getElementById('wifi-settings-rssi').textContent =
+          data.rssi_dbm === null ? '—' : `${data.rssi_dbm} dBm`;
+        const state = document.getElementById('wifi-state');
+        state.textContent = data.connected ? 'Connected' : 'Disconnected';
+        state.classList.toggle('online', data.connected);
+      } catch (error) {
+        document.getElementById('wifi-message').textContent = error.message;
+      }
+    }
+
+    async function refreshBleSettings() {
+      try {
+        const data = await requestJson('/api/settings/ble');
+        const deviceName = data.name || 'Not selected';
+        document.getElementById('ble-name').textContent = deviceName;
+        document.getElementById('ble-address').textContent =
+          data.address || (data.cleared ? 'Not saved' : 'Factory default');
+        document.getElementById('home-ble').textContent = deviceName;
+        document.getElementById('ble-settings-rssi').textContent =
+          data.rssi_dbm === null ? '—' : `${data.rssi_dbm} dBm`;
+        const state = document.getElementById('ble-state');
+        state.textContent = data.connected
+          ? 'Connected'
+          : (data.cleared ? 'No device selected' : 'Searching / disconnected');
+        state.classList.toggle('online', data.connected);
+      } catch (error) {
+        document.getElementById('ble-message').textContent = error.message;
+      }
+    }
+
+    async function refreshSettings() {
+      await Promise.all([refreshWifiSettings(), refreshBleSettings()]);
+    }
+
+    document.getElementById('reset-wifi').addEventListener('click', async (event) => {
+      if (!confirm('Delete the saved Wi-Fi SSID and password? The device will restart.')) return;
+      const button = event.currentTarget;
+      const message = document.getElementById('wifi-message');
+      button.disabled = true;
+      message.textContent = 'Clearing Wi-Fi settings and restarting…';
+      try {
+        await requestJson('/api/settings/wifi/reset', { method: 'POST' });
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+      }
+    });
+
+    let bleScanTimer;
+    let bleScanDeadline = 0;
+    function renderBleDevices(devices) {
+      const list = document.getElementById('ble-devices');
+      list.replaceChildren();
+      devices.forEach((device) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'device';
+        const identity = document.createElement('span');
+        const name = document.createElement('span');
+        name.className = 'device-name';
+        name.textContent = device.name || 'Unnamed device';
+        const address = document.createElement('span');
+        address.className = 'device-meta';
+        address.textContent = `${device.address} · ${device.rssi_dbm} dBm`;
+        identity.append(name, address);
+        const action = document.createElement('span');
+        action.textContent = 'Select';
+        button.append(identity, action);
+        button.addEventListener('click', () => selectBleDevice(device, button));
+        list.append(button);
+      });
+    }
+
+    async function pollBleScan(start) {
+      const message = document.getElementById('ble-message');
+      try {
+        const url = start
+          ? '/api/settings/ble/scan?refresh=1'
+          : '/api/settings/ble/scan';
+        const data = await requestJson(url);
+        renderBleDevices(data.devices);
+        if (data.scanning && Date.now() < bleScanDeadline) {
+          message.textContent = `Scanning… ${data.devices.length} device(s) found`;
+          bleScanTimer = setTimeout(() => pollBleScan(false), 1000);
+        } else {
+          message.textContent = data.devices.length
+            ? `${data.devices.length} device(s) found`
+            : 'No BLE devices found. Move closer and scan again.';
+          await refreshBleSettings();
+        }
+      } catch (error) {
+        message.textContent = error.message;
+      }
+    }
+
+    document.getElementById('scan-ble').addEventListener('click', () => {
+      clearTimeout(bleScanTimer);
+      bleScanDeadline = Date.now() + 15000;
+      document.getElementById('ble-message').textContent = 'Starting BLE scan…';
+      pollBleScan(true);
+    });
+
+    async function selectBleDevice(device, button) {
+      const message = document.getElementById('ble-message');
+      button.disabled = true;
+      message.textContent = `Saving ${device.name || device.address}…`;
+      try {
+        const body = new URLSearchParams({
+          address: device.address,
+          address_type: String(device.address_type),
+          name: device.name || device.address
+        });
+        await requestJson('/api/settings/ble/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body
+        });
+        message.textContent = 'Saved. Connecting to the selected meter…';
+        await refreshBleSettings();
+      } catch (error) {
+        message.textContent = error.message;
+        button.disabled = false;
+      }
+    }
+
+    document.getElementById('delete-ble').addEventListener('click', async (event) => {
+      if (!confirm('Delete the saved BLE device? The factory-default meter will be used.')) return;
+      const button = event.currentTarget;
+      const message = document.getElementById('ble-message');
+      button.disabled = true;
+      try {
+        await requestJson('/api/settings/ble/delete', { method: 'POST' });
+        message.textContent = 'Saved BLE selection deleted. No BLE device is selected.';
+        await refreshBleSettings();
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    refreshDashboard();
+    refreshSettings();
+    setInterval(() => {
+      refreshDashboard();
+      const settingsVisible = document.getElementById('settings-view').classList.contains('active');
+      if (settingsVisible) refreshSettings();
+    }, 2000);
+  </script>
+</body>
+</html>

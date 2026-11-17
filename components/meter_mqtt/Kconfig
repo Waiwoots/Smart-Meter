@@ -1,0 +1,28 @@
+menu "Smart Meter MQTT"
+
+    config SMART_METER_MQTT_ENABLED
+        bool "Enable MQTT publishing"
+        default y
+        help
+            Publish each meter reading to its own MQTT topic after each poll.
+
+    config SMART_METER_MQTT_BROKER_URI
+        string "MQTT broker URI"
+        depends on SMART_METER_MQTT_ENABLED
+        default "mqtts://d090e9b4.ala.us-east-1.emqxsl.com:8883"
+        help
+            Broker URI. Use mqtts:// for TLS connections.
+
+    config SMART_METER_MQTT_USERNAME
+        string "MQTT username"
+        depends on SMART_METER_MQTT_ENABLED
+        default "admin"
+
+    config SMART_METER_MQTT_PASSWORD
+        string "MQTT password"
+        depends on SMART_METER_MQTT_ENABLED
+        default ""
+        help
+            MQTT password. Set locally with menuconfig; do not commit secrets.
+
+endmenu

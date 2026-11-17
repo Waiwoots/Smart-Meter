@@ -1,0 +1,124 @@
+menu "Example Configuration"
+
+    orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+
+    choice BLINK_LED
+        prompt "Blink LED type"
+        default BLINK_LED_GPIO
+        help
+            Select the LED type. A normal level controlled LED or an addressable LED strip.
+            The default selection is based on the Espressif DevKit boards.
+            You can change the default selection according to your board.
+
+        config BLINK_LED_GPIO
+            bool "GPIO"
+        config BLINK_LED_STRIP
+            bool "LED strip"
+    endchoice
+
+    choice BLINK_LED_STRIP_BACKEND
+        depends on BLINK_LED_STRIP
+        prompt "LED strip backend peripheral"
+        default BLINK_LED_STRIP_BACKEND_RMT if SOC_RMT_SUPPORTED
+        default BLINK_LED_STRIP_BACKEND_SPI
+        help
+            Select the backend peripheral to drive the LED strip.
+
+        config BLINK_LED_STRIP_BACKEND_RMT
+            depends on SOC_RMT_SUPPORTED
+            bool "RMT"
+        config BLINK_LED_STRIP_BACKEND_SPI
+            bool "SPI"
+    endchoice
+
+    config BLINK_GPIO
+        int "Blink GPIO number"
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 8
+        help
+            GPIO number (IOxx) to blink on and off the LED.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.
+
+    config BLINK_PERIOD
+        int "Blink period in ms"
+        range 10 3600000
+        default 1000
+        help
+            Define the blinking period in milliseconds.
+
+    config SMART_METER_WIFI_SSID
+        string "Wi-Fi SSID"
+        default ""
+        help
+            SSID of the Wi-Fi network used to access the meter dashboard.
+
+    config SMART_METER_WIFI_PASSWORD
+        string "Wi-Fi password"
+        default ""
+        help
+            Password of the Wi-Fi network used to access the meter dashboard.
+
+    menu "TFT ILI9488 Display and XPT2046 Touch"
+
+        config SMART_METER_TFT_SCLK_GPIO
+            int "TFT SPI clock (SCLK) GPIO"
+            range 0 30
+            default 6
+            help
+                GPIO connected to the TFT SCLK pin.
+
+        config SMART_METER_TFT_MOSI_GPIO
+            int "TFT SPI data (MOSI) GPIO"
+            range 0 30
+            default 7
+            help
+                GPIO connected to the TFT MOSI/SDA and XPT2046 T_DIN pins.
+
+        config SMART_METER_TFT_CS_GPIO
+            int "TFT chip select (CS) GPIO"
+            range 0 30
+            default 10
+            help
+                GPIO connected to the TFT CS pin.
+
+        config SMART_METER_TFT_DC_GPIO
+            int "TFT data/command (DC) GPIO"
+            range 0 30
+            default 18
+            help
+                GPIO connected to the TFT DC/RS pin.
+
+        config SMART_METER_TFT_RST_GPIO
+            int "TFT reset (RST) GPIO"
+            range 0 30
+            default 19
+            help
+                GPIO connected to the TFT reset pin.
+
+        config SMART_METER_TFT_TOUCH_CS_GPIO
+            int "Touch controller chip select (T_CS) GPIO"
+            range 0 30
+            default 4
+            help
+                GPIO connected to the XPT2046 T_CS pin.
+
+        config SMART_METER_TFT_TOUCH_MISO_GPIO
+            int "Touch controller data output (T_DO) GPIO"
+            range 0 30
+            default 5
+            help
+                GPIO connected to the XPT2046 T_DO/SDO pin.
+
+        config SMART_METER_TFT_BL_GPIO
+            int "TFT backlight (BL) GPIO (-1 if not controlled)"
+            range -1 30
+            default -1
+            help
+                Set -1 when the backlight is powered externally. To enable
+                PWM brightness control, connect this GPIO to the backlight
+                control input. Use a transistor/MOSFET if the backlight load
+                exceeds the GPIO drive capability.
+
+    endmenu
+
+endmenu
